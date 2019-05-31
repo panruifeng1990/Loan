@@ -1,15 +1,22 @@
 package com.pan.loan;
 
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.annotation.RequiresApi;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -22,13 +29,12 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
-
-import com.pan.loan.util.Utils;
+import android.widget.Toast;
 
 import java.util.HashSet;
 
 public class MainActivity extends AppCompatActivity {
-
+    public final static int REQUEST_READ_PHONE_STATE = 1;
     private WebView webview;
     private ProgressBar progressbar;
     private static final String LOAN_URL = "http://34.92.201.8/#/";
@@ -48,13 +54,52 @@ public class MainActivity extends AppCompatActivity {
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void initView() {
         urls = new HashSet<>();
-        imei = Utils.getIMEI(this);
-        Log.d("imei", "imei===" + imei);
+        imei = getDeviceId(this);
+        Log.d("tag", "imei===" + imei);
         webview = (WebView) findViewById(R.id.webview);
         webview.setVisibility(View.VISIBLE);
         progressbar = (ProgressBar) findViewById(R.id.progressbar);
+        //8.0动态权限
+
         initWebSetting();
         loadData();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case REQUEST_READ_PHONE_STATE:
+                if ((grantResults.length > 0) && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    //TODO
+                    imei = getDeviceId(this);
+                    Log.d("tag", "imei===" + imei);
+                } else {
+                    Toast.makeText(this, "权限已被用户拒绝", Toast.LENGTH_SHORT).show();
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    @SuppressLint("HardwareIds")
+    public static String getDeviceId(Context context) {
+        String deviceId = "";
+        TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        if (null != tm) {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.READ_PHONE_STATE}, REQUEST_READ_PHONE_STATE);
+            } else {
+                if (tm.getDeviceId() != null) {
+                    deviceId = tm.getDeviceId();
+                } else {
+                    deviceId = Settings.Secure.getString(context.getApplicationContext().getContentResolver(), Settings.Secure.ANDROID_ID);
+                }
+            }
+            Log.d("tag", deviceId);
+        }
+        return deviceId;
     }
 
 
@@ -123,26 +168,35 @@ public class MainActivity extends AppCompatActivity {
                 //wakeUpLogin注入
                 view.loadUrl("javascript:function launchBrowser(str){window.android" +
                         ".launchBrowser(str);}");
+//                view.loadUrl("javascript:function launchBack(){window.android" +
+//                        ".launchBack();}");
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 Log.d("tag", "finish =" + url);
-                Log.d("tag", "urls =" + urls.toString());
+
 //                Log.d("tag", "boolean =" + urls.add(url));
-                view.loadUrl("javascript:callId(" + imei + ")");
+//                view.loadUrl("javascript:callId(" + imei + ")");
                 //wakeUpLogin注入
                 view.loadUrl("javascript:function launchBrowser(str){window.android" +
                         ".launchBrowser(str);}");
-                imeiWebview  = view;
+                //wakeUpLogin注入
+//                view.loadUrl("javascript:function launchBack(){window.android" +
+//                        ".launchBack();}");
+                imeiWebview = view;
 
 
-//                if (urls.add(url))
+                if (urls.add(url)) {
+                    Log.d("tag", "super urls ---=" + urls.toString());
                     super.onPageFinished(view, url);
-//                else {
-//                    urls.remove(url);
-//                    view.goBack();
-//                }
+                } else {
+                    Log.d("tag", "urls ---=" + urls.toString());
+
+                    view.goBack();
+                    urls.remove(url);
+                    Log.d("tag", "urls remove ---=" + urls.toString());
+                }
             }
 
             @Override
@@ -208,16 +262,33 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void launchBrowser(String str) {
-            imeiWebview.loadUrl("javascript:callId(" + imei + ")");
+        public void launchBack() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
 
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void launchBrowser(final String str) {
             Log.d("tag", str);
-//            Toast.makeText(mContext, str, Toast.LENGTH_LONG).show();
-            Intent intent = new Intent();
-            intent.setAction("android.intent.action.VIEW");
-            Uri content_url = Uri.parse(str);
-            intent.setData(content_url);
-            mContext.startActivity(intent);
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (str != null && str.startsWith("http")) {
+                        Intent intent = new Intent();
+                        intent.setAction("android.intent.action.VIEW");
+                        Uri content_url = Uri.parse(str);
+                        intent.setData(content_url);
+                        mContext.startActivity(intent);
+                    }
+                    webview.loadUrl("javascript:callId(" + imei + ")");
+                    Log.d("tag", imei);
+                }
+            });
+
 
         }
 
