@@ -59,8 +59,6 @@ public class MainActivity extends AppCompatActivity {
         webview = (WebView) findViewById(R.id.webview);
         webview.setVisibility(View.VISIBLE);
         progressbar = (ProgressBar) findViewById(R.id.progressbar);
-        //8.0动态权限
-
         initWebSetting();
         loadData();
     }
@@ -88,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
         String deviceId = "";
         TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         if (null != tm) {
+            //8.0动态权限
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.READ_PHONE_STATE}, REQUEST_READ_PHONE_STATE);
             } else {
@@ -184,19 +183,7 @@ public class MainActivity extends AppCompatActivity {
                 //wakeUpLogin注入
 //                view.loadUrl("javascript:function launchBack(){window.android" +
 //                        ".launchBack();}");
-                imeiWebview = view;
-
-
-                if (urls.add(url)) {
-                    Log.d("tag", "super urls ---=" + urls.toString());
-                    super.onPageFinished(view, url);
-                } else {
-                    Log.d("tag", "urls ---=" + urls.toString());
-
-                    view.goBack();
-                    urls.remove(url);
-                    Log.d("tag", "urls remove ---=" + urls.toString());
-                }
+                super.onPageFinished(view, url);
             }
 
             @Override
@@ -246,7 +233,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webview.canGoBack()) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && webview.canGoBack()&&!webview.getOriginalUrl().equals("https://www.pesomarket.com/#/")) {
             webview.goBack();// 返回前一个页面
             return true;
         }
