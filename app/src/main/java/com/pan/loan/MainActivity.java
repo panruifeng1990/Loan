@@ -12,35 +12,42 @@ import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.Settings;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.telephony.TelephonyManager;
-import android.util.Log;
+import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.DownloadListener;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.HashSet;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
     public final static int REQUEST_READ_PHONE_STATE = 1;
+    private static final long DELAYMILLIS = 1500;
     private WebView webview;
+    private ImageView iv_loading;
+    private TextView tv_loading;
     private ProgressBar progressbar;
-    private static final String LOAN_URL = "http://34.92.201.8/#/";
+    private static final String LOAN_URL = "https://www.pesomarket.com";
+//    private static final String LOAN_URL = "http://172.17.1.168:8000";
     private String imei;
-    private HashSet<String> urls;
-    private WebView imeiWebview;
+    private boolean isFirst = true;
+    private String firstUrl = "";
+    Handler handler = new Handler();
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
@@ -53,14 +60,21 @@ public class MainActivity extends AppCompatActivity {
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void initView() {
-        urls = new HashSet<>();
         imei = getDeviceId(this);
-        Log.d("tag", "imei===" + imei);
+        iv_loading = (ImageView) findViewById(R.id.iv_loading);
+        tv_loading = (TextView) findViewById(R.id.tv_loading);
         webview = (WebView) findViewById(R.id.webview);
         webview.setVisibility(View.VISIBLE);
         progressbar = (ProgressBar) findViewById(R.id.progressbar);
         initWebSetting();
         loadData();
+
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                iv_loading.setVisibility(View.GONE);
+            }
+        }, DELAYMILLIS);
     }
 
     @Override
@@ -70,8 +84,8 @@ public class MainActivity extends AppCompatActivity {
                 if ((grantResults.length > 0) && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                     //TODO
                     imei = getDeviceId(this);
-                    Log.d("tag", "imei===" + imei);
                 } else {
+                    imei = getUniquePsuedoID();
                     Toast.makeText(this, "权限已被用户拒绝", Toast.LENGTH_SHORT).show();
                 }
                 break;
@@ -81,33 +95,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    @SuppressLint("HardwareIds")
-    public static String getDeviceId(Context context) {
-        String deviceId = "";
-        TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
-        if (null != tm) {
-            //8.0动态权限
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.READ_PHONE_STATE}, REQUEST_READ_PHONE_STATE);
-            } else {
-                if (tm.getDeviceId() != null) {
-                    deviceId = tm.getDeviceId();
-                } else {
-                    deviceId = Settings.Secure.getString(context.getApplicationContext().getContentResolver(), Settings.Secure.ANDROID_ID);
-                }
-            }
-            Log.d("tag", deviceId);
-        }
-        return deviceId;
-    }
-
 
     private void loadData() {
-//        webview.loadUrl(LOAN_URL);
-        webview.loadUrl("https://www.pesomarket.com");
-//        webview.loadUrl("http://10.1.3.93:8000/%E4%BA%94%E6%9C%88%E7%88%B1%E5%AE%B6%E8%8A%82.htm");
+        webview.loadUrl(LOAN_URL);
 //        webview.loadUrl("file:///android_asset/index.html");
-//        webview.loadUrl("http://10.1.3.93:8000/index.html");
     }
 
 
@@ -142,7 +133,9 @@ public class MainActivity extends AppCompatActivity {
             public void onProgressChanged(WebView view, int newProgress) {
                 if (newProgress == 100) {
                     progressbar.setVisibility(View.INVISIBLE);
+                    tv_loading.setVisibility(View.GONE);
                 } else {
+                    tv_loading.setVisibility(View.VISIBLE);
                     progressbar.setVisibility(View.VISIBLE);
                     progressbar.setProgress(newProgress);
                 }
@@ -163,38 +156,28 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
-                Log.d("tag", "start =" + url);
-                //wakeUpLogin注入
                 view.loadUrl("javascript:function launchBrowser(str){window.android" +
                         ".launchBrowser(str);}");
-//                view.loadUrl("javascript:function launchBack(){window.android" +
-//                        ".launchBack();}");
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                Log.d("tag", "finish =" + url);
+                if (isFirst) {
+                    firstUrl = url;
+                    isFirst = false;
+                }
 
-//                Log.d("tag", "boolean =" + urls.add(url));
-//                view.loadUrl("javascript:callId(" + imei + ")");
-                //wakeUpLogin注入
+                if (!TextUtils.isEmpty(imei)) {
+                    view.loadUrl("javascript:callId('" + imei + "')");
+
+                }
                 view.loadUrl("javascript:function launchBrowser(str){window.android" +
                         ".launchBrowser(str);}");
-                //wakeUpLogin注入
-//                view.loadUrl("javascript:function launchBack(){window.android" +
-//                        ".launchBack();}");
                 super.onPageFinished(view, url);
             }
 
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Log.d("tag", "shouldOverrideUrlLoading =" + request.getUrl());
-                return super.shouldOverrideUrlLoading(view, request);
-            }
-
-            @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                Log.d("tag", "shouldOverrideUrlLoading =" + url);
                 if (url != null && url.contains("http") && !url.contains("play.google.com")) {
                     view.loadUrl(url);   //在当前的webview中跳转到新的url
                 }
@@ -208,18 +191,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 return true;
             }
-
-            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-
-                // *** NEVER DO THIS!!! ***
-                // super.onReceivedSslError(view, handler, error);
-
-                // let's ignore ssl error
-                handler.proceed();
-            }
         });
-
-
         webview.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
@@ -233,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webview.canGoBack()&&!webview.getOriginalUrl().equals("https://www.pesomarket.com/#/")) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && webview.canGoBack() && !webview.getOriginalUrl().equals(firstUrl)) {
             webview.goBack();// 返回前一个页面
             return true;
         }
@@ -249,18 +221,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
-        public void launchBack() {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-
-                }
-            });
-        }
-
-        @JavascriptInterface
         public void launchBrowser(final String str) {
-            Log.d("tag", str);
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -271,8 +232,6 @@ public class MainActivity extends AppCompatActivity {
                         intent.setData(content_url);
                         mContext.startActivity(intent);
                     }
-                    webview.loadUrl("javascript:callId(" + imei + ")");
-                    Log.d("tag", imei);
                 }
             });
 
@@ -281,4 +240,60 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
+
+    public String getUniquePsuedoID() {
+        String serial = null;
+
+        String m_szDevIDShort = "35" +
+                Build.BOARD.length() % 10 + Build.BRAND.length() % 10 +
+
+                Build.CPU_ABI.length() % 10 + Build.DEVICE.length() % 10 +
+
+                Build.DISPLAY.length() % 10 + Build.HOST.length() % 10 +
+
+                Build.ID.length() % 10 + Build.MANUFACTURER.length() % 10 +
+
+                Build.MODEL.length() % 10 + Build.PRODUCT.length() % 10 +
+
+                Build.TAGS.length() % 10 + Build.TYPE.length() % 10 +
+
+                Build.USER.length() % 10; //13 位
+
+        try {
+            serial = android.os.Build.class.getField("SERIAL").get(null).toString();
+            //API>=9 使用serial号
+            return new UUID(m_szDevIDShort.hashCode(), serial.hashCode()).toString();
+        } catch (Exception exception) {
+            //serial需要一个初始化
+            serial = "serial"; // 随便一个初始化
+        }
+        //使用硬件信息拼凑出来的15位号码
+        return new UUID(m_szDevIDShort.hashCode(), serial.hashCode()).toString();
+    }
+
+    @SuppressLint("HardwareIds")
+    public String getDeviceId(Context context) {
+        String deviceId = "";
+        TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        if (null != tm) {
+            //8.0动态权限
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.READ_PHONE_STATE}, REQUEST_READ_PHONE_STATE);
+            } else {
+                if (tm.getDeviceId() != null) {
+                    deviceId = tm.getDeviceId();
+                } else {
+                    deviceId = Settings.Secure.getString(context.getApplicationContext().getContentResolver(), Settings.Secure.ANDROID_ID);
+                }
+            }
+        }
+        if (TextUtils.isEmpty(deviceId)) {
+            deviceId = getUniquePsuedoID();
+        } else {
+            if (!TextUtils.isEmpty(tm.getLine1Number()))
+                deviceId = tm.getLine1Number() + "&&" + deviceId;
+        }
+        return deviceId;
+    }
+
 }
