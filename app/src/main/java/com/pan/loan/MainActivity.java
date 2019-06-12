@@ -19,6 +19,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.DownloadListener;
@@ -43,11 +44,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView tv_loading;
     private ProgressBar progressbar;
     private static final String LOAN_URL = "https://www.pesomarket.com";
-//    private static final String LOAN_URL = "http://172.17.1.168:8000";
+    //    private static final String LOAN_URL = "http://172.17.1.168:8000";
     private String imei;
     private boolean isFirst = true;
     private String firstUrl = "";
     Handler handler = new Handler();
+    private final String TAG = MainActivity.class.getSimpleName();
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
@@ -226,11 +228,16 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void run() {
                     if (str != null && str.startsWith("http")) {
-                        Intent intent = new Intent();
-                        intent.setAction("android.intent.action.VIEW");
-                        Uri content_url = Uri.parse(str);
-                        intent.setData(content_url);
-                        mContext.startActivity(intent);
+                        Log.d(TAG, str);
+                        if (str.contains("https://play.google.com/store/apps"))
+                            rateNow(mContext, str);
+                        else {
+                            Intent intent = new Intent();
+                            intent.setAction("android.intent.action.VIEW");
+                            Uri content_url = Uri.parse(str);
+                            intent.setData(content_url);
+                            mContext.startActivity(intent);
+                        }
                     }
                 }
             });
@@ -239,6 +246,33 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
+    }
+
+    final String GOOGLE_PLAY = "com.android.vending";//这里对应的是谷歌商店，跳转别的商店改成对应的即可
+
+    public void rateNow(final Context context, String googleUrl) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            Log.d(TAG, "rateNow: "+googleUrl);
+            intent.setData(Uri.parse(googleUrl.replace("https://play.google.com/store/apps", "market:/")));
+            intent.setPackage(GOOGLE_PLAY);//这里对应的是谷歌商店，跳转别的商店改成对应的即可
+            if (intent.resolveActivity(context.getPackageManager()) != null) {
+                Log.d(TAG, "rateNow google play: ");
+
+                context.startActivity(intent);
+            } else {//没有应用市场，通过浏览器跳转到Google Play
+                Log.d(TAG, "rateNow 浏览器: ");
+                Intent intent2 = new Intent(Intent.ACTION_VIEW);
+                intent2.setData(Uri.parse(googleUrl));
+                if (intent2.resolveActivity(context.getPackageManager()) != null) {
+                    context.startActivity(intent2);
+                } else {
+                    //没有Google Play 也没有浏览器
+                }
+            }
+        } catch (ActivityNotFoundException activityNotFoundException1) {
+            Log.e(MainActivity.class.getSimpleName(), "GoogleMarket Intent not found");
+        }
     }
 
     public String getUniquePsuedoID() {
